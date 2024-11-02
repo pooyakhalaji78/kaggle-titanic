@@ -17,6 +17,7 @@ from sklearn.neural_network import MLPClassifier #Neural Network
 from sklearn.ensemble import StackingClassifier #Stacking
 from sklearn.svm import SVC #Stacking
 
+from sklearn.model_selection import GridSearchCV #Grid Search
 from sklearn.metrics import accuracy_score, confusion_matrix #for evaluating the model
 
 '''
@@ -99,92 +100,51 @@ y = train_data['Survived']
 #random_state = saves the random number
 #if you want it to be random everytime, set it to None
 x_train, x_val, y_train, y_val = train_test_split(x, y, test_size=0.2, random_state=42)
-
-#-----------------Train a ML Model----------------
-#Logistic Regression - 81%
-# model = LogisticRegression(max_iter = 1000)
-
-#Decision Tree - 79%
-# model = DecisionTreeClassifier(max_depth=5, random_state=42)
-
-#Random Forest - 82% (Ensemble of Decision Trees)
-# model = RandomForestClassifier(n_estimators=1000, random_state=42)
-
-#Gradient Boosting - 80%
-# model = GradientBoostingClassifier(n_estimators=100, learning_rate=0.1, random_state=42)
-
-#XGBoost - 82%
-# model = XGBClassifier(n_estimators=100, learning_rate=0.1, random_state=42)
-
-#SVM - 65%
-# model = SVC(kernel='rbf', C=1.0, random_state=42)
-
-#K-Nearest Neighbors (KNN) - 71%
-# model = KNeighborsClassifier(n_neighbors=5)
-
-#Naive Bayes - 77%
-# model = GaussianNB()
-
-#Neural Network - 76%
-# model = MLPClassifier(hidden_layer_sizes=(100,), max_iter=500, random_state=42)
+#-----------------Grid search-------------------------
+# Define the parameter grid
+param_grid = {
+    'n_estimators': [100, 200, 300, 500, 700, 1000],
+    'max_depth': [None, 10, 15, 20, 25, 30, 40],
+    'min_samples_split': [2, 5, 10, 15, 20],
+    'min_samples_leaf': [1, 2, 4, 6, 8],
+    'max_features': ['sqrt', 'log2', 0.5, 0.75],
+    'max_leaf_nodes': [None, 20, 50, 100],
+    'bootstrap': [True, False],
+    'oob_score': [True, False]
+}
 
 
+# Set up GridSearchCV
+grid_search = GridSearchCV(
+    estimator=RandomForestClassifier(random_state=42),
+    param_grid=param_grid,
+    cv=5,  # 5-fold cross-validation
+    scoring='accuracy',
+    verbose=2,  # Can be set to 0 or 1 for less output
+    n_jobs=-1   # Use all available cores for faster processing
+)
 
-#-----------------Stacking (To train all models)----------------
-base_learners = [
-    ('lr', LogisticRegression(max_iter=1000)),
-    ('dt', DecisionTreeClassifier(max_depth=5, random_state=42)),
-    ('rf', RandomForestClassifier(n_estimators=1000, random_state=42)),
-    ('gb', GradientBoostingClassifier(n_estimators=100, learning_rate=0.1, random_state=42)),
-    ('xgb', XGBClassifier(n_estimators=100, learning_rate=0.1, random_state=42)),
-    ('svc', SVC(kernel='rbf', C=1.0, probability=True, random_state=42)),
-    ('knn', KNeighborsClassifier(n_neighbors=5)),
-    ('nb', GaussianNB()),
-    ('nn', MLPClassifier(hidden_layer_sizes=(100,), max_iter=500, random_state=42))
-]
+# Fit the grid search to the training data
+grid_search.fit(x_train, y_train)
 
-# Define the meta-model (could be Logistic Regression or another model)
-#Logistic Regression - 81%
-#Decision Tree - 73%
-#Random Forest - 82%
-#Gradient Boosting - 78%
-#XGBoost - 78%
-#SVM - 80%
-#K-Nearest Neighbors (KNN) - 81%
-#Naive Bayes - 78%
-#Neural Network - 82%
-meta_model = MLPClassifier()
-
-# Create the stacking classifier
-stacking_model = StackingClassifier(estimators=base_learners, final_estimator=meta_model)
-
-
-
-
-
+# Print the best parameters found
+print("Best Parameters:", grid_search.best_params_)
 #-----------------Evaluating the model----------------
+best_model = grid_search.best_estimator_
+best_model.fit(x_train, y_train)
+y_pred = best_model.predict(x_val)
 
-#Normal
-#model.fit(x_train, y_train)
-#y_pred = model.predict(x_val)
-
-#Stacking
-stacking_model.fit(x_train, y_train)
-y_pred = stacking_model.predict(x_val)
-#-----------------Preparing Test Set----------------
-#Normal
-# predictions = model.predict(test_data)
-
-#Stacking
-predictions = stacking_model.predict(test_data)
-
-#-----------------Printing Results----------------
+# Evaluate the optimized model
 print('Accuracy:', accuracy_score(y_val, y_pred))
 print('Confusion Matrix:\n', confusion_matrix(y_val, y_pred))
+#-----------------Preparing Test Set----------------
+predictions = best_model.predict(test_data)
+#-----------------Printing Results----------------
+
 #-----------------Submit the results----------------
 submission = pd.DataFrame({
     'PassengerId': pd.read_csv('test.csv')['PassengerId'],
     'Survived': predictions
 })
-submission.to_csv('submission.csv', index=False)
+submission.to_csv('submission_grid_search.csv', index=False)
 
